@@ -4,3 +4,4 @@ program|Snake|1.0|/Programy/Snake.sap|programy/snake.sap|13112|b7a58b46ab12fb667
 program|Kalkulator|1.0|/Programy/Kalkulator.sap|programy/kalkulator.sap|13264|268e1c4e170d974c78be53645f48b5ea8b8a6099d94cd21a66955967e5ce61d8|Prosty kalkulator: + - x : i procenty, dziala tez z klawiatury
 plik|Ciekawostki o Sartax OS|1.0|/Dokumenty/Ciekawostki.txt|pliki/Ciekawostki.txt|359|9049598d70745cef7ff4696df0e3e07bc43551313063d36342458d091d7c031a|Krotki tekst o tym, jak dziala Sartax OS
 plik|Moja pierwsza strona|1.0|/Dokumenty/strona.html|pliki/strona.html|879|fe36b8ba1f51d89491bcc5d95d63f1348872aa2606313f4d36263351772a2b31|Przykladowa strona HTML - otworz ja w Przegladarce Sartax
+system|Sartax OS 1.0.1|1.0.1|/System/jadro.sxk|https://github.com/Mikolajek6572/sartax-os/releases/download/v1.0.1/sartax-kernel.sxk|2481664|98e573b72538a2514cd6bde6cad52bd1c8b85502cb0dc396d121a2f8c7f167be|Nowa Przegladarka Sartax, programy w Pobieralni, poprawki
