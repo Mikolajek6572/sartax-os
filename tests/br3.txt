@@ -1,0 +1,20 @@
+wait 22
+move 55 140
+click
+key ret
+wait 8
+move 500 139
+click
+key ctrl-a
+type pl.wikipedia.org/wiki/Raspberry_Pi
+key ret
+wait 150
+move 500 400
+click
+key pgup
+key pgup
+wait 2
+shot c_wiki2.png
+key pgdn
+wait 2
+shot c_wiki3.png

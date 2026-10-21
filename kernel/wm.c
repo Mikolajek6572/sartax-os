@@ -810,9 +810,11 @@ bool ui_textbox_id(u64 id, int x, int y, int w, char *buf, int cap, int flags, c
         else used = false;
         if (used) ui.key = NULL;
     }
-    gfx_round_rect(s, x, y, w, h, 7, RGB(255, 255, 255));
-    gfx_round_outline(s, x, y, w, h, 7, foc ? g_theme.accent : (hov ? RGB(150, 160, 172) : RGB(196, 204, 212)));
-    if (foc) gfx_round_outline(s, x - 1, y - 1, w + 2, h + 2, 8, WITH_ALPHA(g_theme.accent, 70));
+    if (!(flags & TB_NOFRAME)) {
+        gfx_round_rect(s, x, y, w, h, 7, RGB(255, 255, 255));
+        gfx_round_outline(s, x, y, w, h, 7, foc ? g_theme.accent : (hov ? RGB(150, 160, 172) : RGB(196, 204, 212)));
+        if (foc) gfx_round_outline(s, x - 1, y - 1, w + 2, h + 2, 8, WITH_ALPHA(g_theme.accent, 70));
+    }
     // tekst do wyswietlenia
     char shown[512];
     if (flags & TB_PASSWORD) {
@@ -1151,3 +1153,5 @@ void sys_idle(void) {
         wm_render();
     }
 }
+
+bool ui_textbox_focused(u64 id) { return ui.focus == id && ui.focused; }

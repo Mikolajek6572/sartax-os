@@ -1,0 +1,26 @@
+wait 22
+move 55 140
+click
+key ret
+wait 8
+move 500 139
+click
+key ctrl-a
+type upload.wikimedia.org/wikipedia/commons/thumb/3/3d/RaspberryPi.jpg/330px-RaspberryPi.jpg
+key ret
+wait 25
+shot i_jpg.png
+move 500 139
+click
+key ctrl-a
+type upload.wikimedia.org/wikipedia/commons/4/47/PNG_transparency_demonstration_1.png
+key ret
+wait 60
+shot i_png.png
+move 500 139
+click
+key ctrl-a
+type upload.wikimedia.org/wikipedia/commons/2/2c/Rotating_earth_%28large%29.gif
+key ret
+wait 60
+shot i_gif.png

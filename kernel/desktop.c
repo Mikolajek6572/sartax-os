@@ -28,7 +28,8 @@ int file_icon(const char *name, int type) {
     }
     if (str_ends_with_ci(name, ".txt") || str_ends_with_ci(name, ".cfg") || str_ends_with_ci(name, ".md") ||
         str_ends_with_ci(name, ".log") || str_ends_with_ci(name, ".ini") || str_ends_with_ci(name, ".csv")) return ICON_TEXT;
-    if (str_ends_with_ci(name, ".bmp")) return ICON_IMAGE;
+    if (str_ends_with_ci(name, ".bmp") || str_ends_with_ci(name, ".png") || str_ends_with_ci(name, ".jpg") ||
+        str_ends_with_ci(name, ".jpeg") || str_ends_with_ci(name, ".gif")) return ICON_IMAGE;
     if (str_ends_with_ci(name, ".html") || str_ends_with_ci(name, ".htm")) return ICON_GLOBE;
     if (str_ends_with_ci(name, ".sap")) return ICON_APP;
     if (str_ends_with_ci(name, ".sxk")) return ICON_UPDATE;
@@ -39,7 +40,7 @@ const char *file_type_name(const char *name, int type) {
     if (type == FT_DIR) return "Folder";
     switch (file_icon(name, type)) {
     case ICON_TEXT: return "Dokument tekstowy";
-    case ICON_IMAGE: return "Obraz BMP";
+    case ICON_IMAGE: return "Obraz";
     case ICON_APP: return "Program Sartax";
     case ICON_UPDATE: return "Jadro systemu";
     case ICON_GLOBE: return "Strona HTML";
@@ -79,7 +80,7 @@ void desktop_reload_wallpaper(void) {
         u8 *d;
         u64 sz;
         if (fs_read_file(file, &d, &sz) == 0) {
-            image_t *img = image_load_bmp(d, sz);
+            image_t *img = image_load_any(d, sz);
             kfree(d);
             if (img) {
                 surface_t s = { wallpaper, g_scr_w, g_scr_h, g_scr_w, 0, 0, 0, 0, g_scr_w, g_scr_h };

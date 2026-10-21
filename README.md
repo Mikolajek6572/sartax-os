@@ -8,6 +8,7 @@ Calkowicie wlasny system operacyjny (x86-64) - nie dziala na Linuksie ani Window
 - pulpit, menu Start, okna, eksplorator plikow, notatnik, podglad obrazow, ustawienia
 - siec: e1000, ARP, IPv4, UDP, DHCP, DNS, TCP, HTTPS (BearSSL)
 - Pobieralnia: pliki, programy `.sap` i aktualizacje systemu z tego repo (`repo/index.txt`)
+- Przegladarka Sartax: wlasny silnik HTML, karty, obrazki PNG/JPEG/GIF, wlasna wyszukiwarka (wyniki DuckDuckGo)
 
 ## Uruchomienie w VirtualBox
 

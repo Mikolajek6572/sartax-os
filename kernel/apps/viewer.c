@@ -21,7 +21,7 @@ static void vw_load(viewer_t *v, const char *path) {
     u8 *d;
     u64 sz;
     if (fs_read_file(path, &d, &sz) == 0) {
-        v->img = image_load_bmp(d, sz);
+        v->img = image_load_any(d, sz);
         kfree(d);
     }
     char t[160];
@@ -40,7 +40,7 @@ static void vw_step(viewer_t *v, int dir) {
     int cur = -1, cnt = 0;
     int idx[256];
     for (int i = 0; i < n && cnt < 256; i++)
-        if (list[i].type == FT_FILE && str_ends_with_ci(list[i].name, ".bmp")) {
+        if (list[i].type == FT_FILE && file_icon(list[i].name, FT_FILE) == ICON_IMAGE) {
             if (!strcmp(list[i].name, path_name(v->path))) cur = cnt;
             idx[cnt++] = i;
         }
@@ -75,8 +75,8 @@ static void vw_frame(window_t *w, surface_t *s) {
     int vh = H - TB;
     if (!v->img) {
         gfx_blit(s, W / 2 - 24, TB + vh / 2 - 60, icon_get(ICON_VIEWER, 48));
-        gfx_text_center(s, 0, TB + vh / 2, W, FONT_UI, v->path[0] ? "Nie mozna odczytac obrazu (obslugiwane: BMP 8/24/32-bit)"
-                                                                 : "Otworz obraz .bmp z eksploratora plikow", RGB(220, 226, 232));
+        gfx_text_center(s, 0, TB + vh / 2, W, FONT_UI, v->path[0] ? "Nie mozna odczytac obrazu (obslugiwane: PNG, JPEG, GIF, BMP)"
+                                                                 : "Otworz obraz z eksploratora plikow", RGB(220, 226, 232));
         if (!v->path[0] && ui_button_icon(W / 2 - 90, TB + vh / 2 + 30, 180, 36, ICON_PICTURES, "Otworz Obrazy", BTN_PRIMARY))
             explorer_open("/Obrazy");
         return;

@@ -38,7 +38,9 @@ typedef struct {
     int height, ascent;
 } font_t;
 
-enum { FONT_SMALL, FONT_UI, FONT_BOLD, FONT_TITLE, FONT_BIG, FONT_MONO, FONT_HUGE, FONT_COUNT };
+enum { FONT_SMALL, FONT_UI, FONT_BOLD, FONT_TITLE, FONT_BIG, FONT_MONO, FONT_HUGE,
+       FONT_WEB, FONT_WEB_BOLD, FONT_WEB_H1, FONT_WEB_H2, FONT_WEB_H3, FONT_WEB_TITLE, FONT_WEB_SMALL, FONT_WEB_MONO, FONT_LOGO,
+       FONT_COUNT };
 extern const font_t g_fonts[FONT_COUNT];
 
 extern surface_t g_fb;          // bufor tylny, wszystko rysujemy tutaj
@@ -98,4 +100,10 @@ const image_t *icon_get(int id, int size);     // size 16, 24, 32 albo 48
 
 // obrazy z plikow (BMP)
 image_t *image_load_bmp(const u8 *data, size_t len);
+image_t *image_load_png(const u8 *data, size_t len);
+image_t *image_load_jpeg(const u8 *data, size_t len);
+image_t *image_load_gif(const u8 *data, size_t len);
+image_t *image_load_any(const u8 *data, size_t len);     // BMP/PNG/JPEG/GIF
+u8 *zlib_inflate(const u8 *d, size_t n, size_t expected, size_t *outlen);
+u8 *gzip_inflate(const u8 *d, size_t n, size_t *outlen);
 void image_free(image_t *img);

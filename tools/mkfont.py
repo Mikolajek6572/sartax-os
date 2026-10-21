@@ -11,12 +11,23 @@ FONTS = [  # kolejnosc = enum FONT_* w gfx.h
     ("big", "DejaVuSans-Bold.ttf", 28),
     ("mono", "DejaVuSansMono.ttf", 14),
     ("huge", "DejaVuSans-Bold.ttf", 52),
+    ("web", "DejaVuSans.ttf", 15),
+    ("webb", "DejaVuSans-Bold.ttf", 15),
+    ("webh1", "DejaVuSans-Bold.ttf", 30),
+    ("webh2", "DejaVuSans-Bold.ttf", 23),
+    ("webh3", "DejaVuSans-Bold.ttf", 18),
+    ("webtitle", "DejaVuSans.ttf", 19),
+    ("websmall", "DejaVuSans.ttf", 13),
+    ("webmono", "DejaVuSansMono.ttf", 14),
+    ("logo", "DejaVuSans-Bold.ttf", 72),
 ]
 
 cps = list(range(32, 127)) + list(range(0xA0, 0x100))
 cps += [0x104, 0x105, 0x106, 0x107, 0x118, 0x119, 0x141, 0x142, 0x143, 0x144, 0x15A, 0x15B, 0x179, 0x17A, 0x17B, 0x17C]
 cps += [0x2013, 0x2014, 0x2018, 0x2019, 0x201C, 0x201D, 0x201E, 0x2022, 0x2026, 0x20AC,
         0x2190, 0x2191, 0x2192, 0x2193, 0x2713, 0x2715, 0x25B2, 0x25B6, 0x25BC, 0x25C0, 0x2605, 0x2665]
+cps += list(range(0x100, 0x180)) + list(range(0x391, 0x3CA)) + list(range(0x401, 0x460))
+cps += [0x2010, 0x2011, 0x2012, 0x2015, 0x2030, 0x2032, 0x2033, 0x2039, 0x203A, 0x2122, 0x2212, 0x2248, 0x2260, 0x2264, 0x2265, 0x221E, 0x00B5]
 cps = sorted(set(cps))
 
 out = ["// wygenerowane przez tools/mkfont.py - nie edytowac", '#include "../gfx.h"', ""]
@@ -27,7 +38,9 @@ for name, file, size in FONTS:
     asc, desc = font.getmetrics()
     glyphs = []
     bitmap = bytearray()
-    for cp in cps:
+    # duze czcionki tylko z podstawowymi znakami (mniejsze jadro)
+    font_cps = cps if size < 28 else [c for c in cps if c < 0x180 or c in (0x2013, 0x2014, 0x2022, 0x2026, 0x2192, 0x2190, 0x201E, 0x201D)]
+    for cp in font_cps:
         ch = chr(cp)
         f = font
         try:
@@ -36,7 +49,7 @@ for name, file, size in FONTS:
         except Exception:
             f = fallback
         adv = int(round(f.getlength(ch)))
-        if name == "mono":
+        if name in ("mono", "webmono"):
             adv = int(round(font.getlength("M")))
         bbox = f.getbbox(ch)
         x0, y0, x1, y1 = bbox

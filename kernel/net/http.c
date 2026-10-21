@@ -3,6 +3,7 @@
 #include "../net.h"
 #include "../ui.h"
 #include "bearssl.h"
+#include "../gfx.h"
 
 extern const br_x509_trust_anchor *g_TAs;
 extern const size_t g_TAs_num;
@@ -165,7 +166,7 @@ static int one_request(const char *url, http_resp_t *resp, char *location, http_
     conn_t c;
     if (conn_open(&c, host, port, tls, resp->error)) { kfree(path); return -1; }
     char *req = kmalloc(1400);
-    snprintf(req, 1400, "GET %s HTTP/1.1\r\nHost: %s\r\nUser-Agent: SartaxOS/%s\r\nAccept: text/html,text/plain,*/*\r\nAccept-Language: pl,en\r\nConnection: close\r\n\r\n",
+    snprintf(req, 1400, "GET %s HTTP/1.1\r\nHost: %s\r\nUser-Agent: SartaxOS/%s\r\nAccept: text/html,text/plain,*/*\r\nAccept-Language: pl,en\r\nAccept-Encoding: gzip\r\nConnection: close\r\n\r\n",
              path, host, SARTAX_VERSION);
     kfree(path);
     busy_update("Wysylanie zapytania...", 0, 0);
@@ -194,7 +195,7 @@ static int one_request(const char *url, http_resp_t *resp, char *location, http_
     char *sp = strchr(line, ' ');
     resp->status = sp ? katoi(sp + 1) : 0;
     i64 clen = -1;
-    bool chunked = false;
+    bool chunked = false, gz = false;
     for (;;) {
         int n = rd_line(r, line, sizeof line);
         if (n <= 0) break;
@@ -206,6 +207,7 @@ static int one_request(const char *url, http_resp_t *resp, char *location, http_
         else if (hdr_match(line, "transfer-encoding") && strstr(v, "chunked")) chunked = true;
         else if (hdr_match(line, "location")) strlcpy(location, v, 1024);
         else if (hdr_match(line, "content-type")) strlcpy(resp->ctype, v, sizeof resp->ctype);
+        else if (hdr_match(line, "content-encoding") && strstr(v, "gzip")) gz = true;
     }
     if (resp->status >= 300 && resp->status < 400 && location[0]) { kfree(r); conn_free(&c); return 1; }
     // tresc
@@ -249,6 +251,14 @@ static int one_request(const char *url, http_resp_t *resp, char *location, http_
         kfree(r);
         conn_free(&c);
         return -1;
+    }
+    if (gz) {
+        size_t ul;
+        u8 *un = gzip_inflate(body, len, &ul);
+        kfree(body);
+        if (!un) { strlcpy(resp->error, "Nie mozna rozpakowac odpowiedzi (gzip)", sizeof resp->error); kfree(r); conn_free(&c); return -1; }
+        body = krealloc(un, ul + 1);
+        len = ul;
     }
     body[len] = 0;
     resp->body = body;

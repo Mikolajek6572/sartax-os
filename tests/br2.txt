@@ -1,0 +1,17 @@
+wait 22
+move 55 140
+click
+key ret
+wait 8
+shot c_start.png
+type raspberry pi
+key ret
+wait 40
+shot c_search.png
+move 500 107
+click
+key ctrl-a
+type pl.wikipedia.org/wiki/Raspberry_Pi
+key ret
+wait 120
+shot c_wiki.png

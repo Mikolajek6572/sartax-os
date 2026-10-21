@@ -97,7 +97,8 @@ enum { BTN_NORMAL, BTN_PRIMARY, BTN_FLAT, BTN_DANGER, BTN_LIGHT };
 bool ui_button_id(u64 id, int x, int y, int w, int h, const char *label, int icon, int style);
 #define ui_button(x, y, w, h, label, style) ui_button_id(UI_ID(0), x, y, w, h, label, -1, style)
 #define ui_button_icon(x, y, w, h, icon, label, style) ui_button_id(UI_ID(0), x, y, w, h, label, icon, style)
-enum { TB_PASSWORD = 1, TB_AUTOFOCUS = 2 };
+enum { TB_PASSWORD = 1, TB_AUTOFOCUS = 2, TB_NOFRAME = 4 };
+bool ui_textbox_focused(u64 id);
 bool ui_textbox_id(u64 id, int x, int y, int w, char *buf, int cap, int flags, const char *placeholder);
 #define ui_textbox(x, y, w, buf, cap, flags, ph) ui_textbox_id(UI_ID(0), x, y, w, buf, cap, flags, ph)
 bool ui_checkbox_id(u64 id, int x, int y, const char *label, bool *v);
