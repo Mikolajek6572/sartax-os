@@ -445,7 +445,7 @@ void wm_handle(event_t *ev) {
     if (pressed) {
         u64 now = ticks_ms();
         int dx = ev->x - last_click_x, dy = ev->y - last_click_y;
-        if (now - last_click_t < 450 && dx * dx + dy * dy < 36) { dclick = true; last_click_t = 0; }
+        if (now - last_click_t < 550 && dx * dx + dy * dy < 36) { dclick = true; last_click_t = 0; }
         else last_click_t = now;
         last_click_x = ev->x, last_click_y = ev->y;
     }

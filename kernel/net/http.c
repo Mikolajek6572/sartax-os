@@ -165,7 +165,7 @@ static int one_request(const char *url, http_resp_t *resp, char *location, http_
     conn_t c;
     if (conn_open(&c, host, port, tls, resp->error)) { kfree(path); return -1; }
     char *req = kmalloc(1400);
-    snprintf(req, 1400, "GET %s HTTP/1.1\r\nHost: %s\r\nUser-Agent: SartaxOS/%s\r\nAccept: */*\r\nConnection: close\r\n\r\n",
+    snprintf(req, 1400, "GET %s HTTP/1.1\r\nHost: %s\r\nUser-Agent: SartaxOS/%s\r\nAccept: text/html,text/plain,*/*\r\nAccept-Language: pl,en\r\nConnection: close\r\n\r\n",
              path, host, SARTAX_VERSION);
     kfree(path);
     busy_update("Wysylanie zapytania...", 0, 0);
@@ -205,6 +205,7 @@ static int one_request(const char *url, http_resp_t *resp, char *location, http_
         if (hdr_match(line, "content-length")) clen = katoi(v);
         else if (hdr_match(line, "transfer-encoding") && strstr(v, "chunked")) chunked = true;
         else if (hdr_match(line, "location")) strlcpy(location, v, 1024);
+        else if (hdr_match(line, "content-type")) strlcpy(resp->ctype, v, sizeof resp->ctype);
     }
     if (resp->status >= 300 && resp->status < 400 && location[0]) { kfree(r); conn_free(&c); return 1; }
     // tresc
@@ -266,8 +267,11 @@ int http_get(const char *url, http_resp_t *resp, http_progress_fn prog, void *ct
     for (int hop = 0; hop < 6; hop++) {
         kprintf("[http] GET %s\n", cur);
         r = one_request(cur, resp, loc, prog, ctx);
+        strlcpy(resp->final_url, cur, sizeof resp->final_url);
         if (r != 1) break;
-        if (loc[0] == '/') {
+        if (loc[0] == '/' && loc[1] == '/') {
+            snprintf(cur, 1024, "%s%s", !strncmp(cur, "https", 5) ? "https:" : "http:", loc);
+        } else if (loc[0] == '/') {
             // adres wzgledny
             char base[256];
             const char *p = strstr(cur, "://");

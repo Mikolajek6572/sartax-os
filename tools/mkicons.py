@@ -308,6 +308,35 @@ def ic_search():
     d.line([(116, 116), (166, 166)], fill=(60, 72, 88, 255), width=26)
     return im
 
+def ic_globe():
+    im, d = canvas()
+    shadow(im, (14, 14, 178, 178), 82)
+    m = Image.new("L", (S, S), 0)
+    ImageDraw.Draw(m).ellipse((14, 14, 178, 178), fill=255)
+    g = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    grad_rect(g, (14, 14, 178, 178), (60, 190, 250), (20, 110, 210), 82)
+    gd = ImageDraw.Draw(g)
+    # kontynenty
+    gd.polygon([(40, 60), (80, 44), (100, 62), (88, 90), (96, 120), (70, 140), (58, 110), (36, 96)], fill=(80, 200, 110, 255))
+    gd.polygon([(112, 40), (150, 52), (164, 84), (140, 92), (124, 76)], fill=(80, 200, 110, 255))
+    gd.polygon([(116, 112), (150, 104), (156, 140), (128, 160)], fill=(80, 200, 110, 255))
+    im.paste(g, (0, 0), m)
+    d = ImageDraw.Draw(im)
+    d.ellipse((14, 14, 178, 178), outline=(255, 255, 255, 120), width=4)
+    d.arc((54, 14, 138, 178), 0, 360, fill=(255, 255, 255, 90), width=3)
+    d.line([(14, 96), (178, 96)], fill=(255, 255, 255, 90), width=3)
+    # kursor-strzalka jak w przegladarce
+    d.polygon([(118, 112), (178, 140), (152, 148), (168, 176), (156, 182), (140, 154), (122, 170)], fill=(255, 160, 40, 255),
+              outline=(255, 255, 255, 255))
+    return im
+
+def ic_home():
+    im, d = canvas()
+    col = (60, 72, 88, 255)
+    d.polygon([(96, 28), (176, 96), (156, 96), (156, 164), (36, 164), (36, 96), (16, 96)], fill=col)
+    d.rectangle((80, 112, 112, 164), fill=(255, 255, 255, 255))
+    return im
+
 def emb_star(d):
     pts = []
     for i in range(10):
@@ -369,6 +398,8 @@ ICONS = [  # kolejnosc = enum ICON_* w gfx.h
     ("trash", ic_trash),
     ("newfile", ic_newfile),
     ("search", ic_search),
+    ("globe", ic_globe),
+    ("home", ic_home),
 ]
 SIZES = [16, 24, 32, 48]
 

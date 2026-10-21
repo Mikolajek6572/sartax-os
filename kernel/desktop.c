@@ -29,6 +29,7 @@ int file_icon(const char *name, int type) {
     if (str_ends_with_ci(name, ".txt") || str_ends_with_ci(name, ".cfg") || str_ends_with_ci(name, ".md") ||
         str_ends_with_ci(name, ".log") || str_ends_with_ci(name, ".ini") || str_ends_with_ci(name, ".csv")) return ICON_TEXT;
     if (str_ends_with_ci(name, ".bmp")) return ICON_IMAGE;
+    if (str_ends_with_ci(name, ".html") || str_ends_with_ci(name, ".htm")) return ICON_GLOBE;
     if (str_ends_with_ci(name, ".sap")) return ICON_APP;
     if (str_ends_with_ci(name, ".sxk")) return ICON_UPDATE;
     return ICON_FILE;
@@ -41,6 +42,7 @@ const char *file_type_name(const char *name, int type) {
     case ICON_IMAGE: return "Obraz BMP";
     case ICON_APP: return "Program Sartax";
     case ICON_UPDATE: return "Jadro systemu";
+    case ICON_GLOBE: return "Strona HTML";
     }
     return "Plik";
 }
@@ -53,6 +55,7 @@ void open_path(const char *path) {
     case ICON_IMAGE: viewer_open(path); break;
     case ICON_APP: app_run_sap(path); break;
     case ICON_UPDATE: store_open(1); break;
+    case ICON_GLOBE: { char u[300]; snprintf(u, sizeof u, "plik:%s", path); browser_open(u); break; }
     default: notepad_open(path); break;
     }
 }
@@ -62,6 +65,7 @@ void app_open(const char *app, const char *arg) {
     else if (!strcmp(app, "notepad")) notepad_open(arg);
     else if (!strcmp(app, "viewer")) viewer_open(arg);
     else if (!strcmp(app, "store")) store_open(0);
+    else if (!strcmp(app, "browser")) browser_open(arg);
     else if (!strcmp(app, "updates")) store_open(1);
     else if (!strcmp(app, "settings")) settings_open(arg);
     else if (!strcmp(app, "about")) settings_open("info");
@@ -111,6 +115,7 @@ void desktop_refresh(void) {
     int n = 0;
     struct { const char *l; int ic; const char *t; } sys[] = {
         { "Ten komputer", ICON_COMPUTER, "app:explorer" },
+        { "Przegladarka", ICON_GLOBE, "app:browser" },
         { "Pobieralnia", ICON_DOWNLOAD, "app:store" },
         { "Ustawienia", ICON_SETTINGS, "app:settings" },
     };
@@ -240,6 +245,7 @@ static void taskbar_click(int mx, bool right) {
 typedef struct { const char *label; int icon; const char *app; } start_item_t;
 static const start_item_t start_items[] = {
     { "Pliki", ICON_COMPUTER, "explorer" },
+    { "Przegladarka", ICON_GLOBE, "browser" },
     { "Notatnik", ICON_NOTEPAD, "notepad" },
     { "Podglad obrazow", ICON_VIEWER, "viewer" },
     { "Pobieralnia", ICON_DOWNLOAD, "store" },
@@ -552,7 +558,7 @@ static bool sh_mouse(event_t *ev, int prev) {
     if (pressed) {
         int i = dicon_at(ev->x, ev->y);
         u64 now = ticks_ms();
-        if (i >= 0 && i == last_i && now - last_t < 450) { dicon_open(i); last_i = -2; }
+        if (i >= 0 && i == last_i && now - last_t < 550) { dicon_open(i); last_i = -2; }
         else { last_i = i; last_t = now; }
         dsel = i;
         wm_invalidate();

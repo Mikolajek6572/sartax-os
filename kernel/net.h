@@ -23,6 +23,8 @@ typedef struct {
     u8 *body;
     size_t len;
     char error[128];
+    char ctype[64];          // Content-Type
+    char final_url[512];     // adres po przekierowaniach
 } http_resp_t;
 typedef void (*http_progress_fn)(void *ctx, size_t done, size_t total);
 int http_get(const char *url, http_resp_t *resp, http_progress_fn progress, void *ctx);

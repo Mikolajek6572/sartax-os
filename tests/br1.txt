@@ -1,0 +1,12 @@
+wait 18
+move 55 140
+click
+key ret
+wait 6
+move 500 99
+click
+key ctrl-a
+type pl.wikipedia.org/wiki/Polska
+key ret
+wait 60
+shot b_wiki.png

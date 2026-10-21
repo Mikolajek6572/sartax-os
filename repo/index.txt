@@ -1,3 +1,6 @@
-# Sartax OS - lista plikow w Pobieralni
+# Sartax OS - lista plikow w Pobieralni (generuje tools/mkrepo.py)
 # typ|nazwa|wersja|sciezka|url|rozmiar|sha256|opis
+program|Snake|1.0|/Programy/Snake.sap|programy/snake.sap|13112|b7a58b46ab12fb667ecf5109aa828449f5039f27ff16c0a9e9e04d07d71f01b9|Klasyczny waz - zbieraj jablka, rekord zapisuje sie w Dokumentach
+program|Kalkulator|1.0|/Programy/Kalkulator.sap|programy/kalkulator.sap|13264|268e1c4e170d974c78be53645f48b5ea8b8a6099d94cd21a66955967e5ce61d8|Prosty kalkulator: + - x : i procenty, dziala tez z klawiatury
 plik|Ciekawostki o Sartax OS|1.0|/Dokumenty/Ciekawostki.txt|pliki/Ciekawostki.txt|359|9049598d70745cef7ff4696df0e3e07bc43551313063d36342458d091d7c031a|Krotki tekst o tym, jak dziala Sartax OS
+plik|Moja pierwsza strona|1.0|/Dokumenty/strona.html|pliki/strona.html|879|fe36b8ba1f51d89491bcc5d95d63f1348872aa2606313f4d36263351772a2b31|Przykladowa strona HTML - otworz ja w Przegladarce Sartax

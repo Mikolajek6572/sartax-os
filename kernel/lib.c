@@ -266,3 +266,10 @@ int snprintf(char *buf, size_t n, const char *f, ...) {
     va_end(ap);
     return r;
 }
+
+void *memchr(const void *s, int c, size_t n) {
+    const u8 *p = s;
+    for (size_t i = 0; i < n; i++)
+        if (p[i] == (u8)c) return (void *)(p + i);
+    return NULL;
+}

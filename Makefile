@@ -81,6 +81,19 @@ $(B)/sartax.iso: $(B)/cdboot.bin $(B)/stage2.bin $(B)/kernel.bin tools/mkimage.p
 		-boot-info-table -o $@ $(B)/iso
 	@ls -la $@
 
+# ---- programy .sap (SDK) ----
+SAPFLAGS := -std=gnu11 -O2 -ffreestanding -fpie -fvisibility=hidden -mno-red-zone -mgeneral-regs-only -fno-builtin \
+	-fno-stack-protector -fcf-protection=none -fno-asynchronous-unwind-tables -fno-tree-loop-distribute-patterns -Wall
+SAPS := $(patsubst apps/%/,$(B)/apps/%.sap,$(wildcard apps/*/))
+
+$(B)/apps/%.sap: apps/%/*.c sdk/sartax.h sdk/saplib.c
+	@mkdir -p $(B)/apps/obj
+	$(CC) $(SAPFLAGS) -c $(filter %.c,$(filter apps/%,$^)) -o $(B)/apps/obj/$*.o
+	$(CC) $(SAPFLAGS) -c sdk/saplib.c -o $(B)/apps/obj/saplib.o
+	ld -shared -Bsymbolic --no-undefined -s -e sap_main -z noexecstack -o $@ $(B)/apps/obj/$*.o $(B)/apps/obj/saplib.o
+
+apps: $(SAPS)
+
 run: $(B)/sartax.iso
 	qemu-system-x86_64 -m 512 -cdrom $< -serial stdio -boot d
 
@@ -88,4 +101,4 @@ clean:
 	rm -rf $(B) kernel/gen
 
 -include $(KOBJ:.o=.d)
-.PHONY: all run clean
+.PHONY: all run clean apps

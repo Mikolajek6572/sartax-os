@@ -19,6 +19,7 @@ void notepad_open(const char *path);
 void viewer_open(const char *path);
 void settings_open(const char *page);
 void store_open(int tab);
+void browser_open(const char *url);
 int app_run_sap(const char *path);
 
 // schowek plikow

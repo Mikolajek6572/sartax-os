@@ -1,5 +1,6 @@
 wait 18
 move 55 140
-dclick
-wait 25
+click
+key ret
+wait 30
 shot n_store.png
