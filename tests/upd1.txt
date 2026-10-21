@@ -1,0 +1,16 @@
+wait 18
+move 55 232
+click
+key ret
+wait 25
+move 794 118
+click
+wait 2
+shot u_tab.png
+move 230 300
+click
+wait 90
+shot u_done.png
+key ret
+wait 30
+shot u_after.png
