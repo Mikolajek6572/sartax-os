@@ -1,0 +1,10 @@
+wait 3
+shot d_prompt.png
+wait 14
+shot d_desk.png
+key ret
+wait 1
+move 30 745
+click
+wait 1
+shot d_start.png

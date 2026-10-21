@@ -1,0 +1,5 @@
+build/
+kernel/gen/
+third_party/BearSSL/build/
+*.o
+*.d

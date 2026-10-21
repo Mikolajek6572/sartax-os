@@ -1,0 +1,4 @@
+To jest plik na pulpicie.
+
+Wszystko, co zapiszesz w folderze /Pulpit, pojawi się na pulpicie.
+Kliknij dwa razy ikonę "Ten komputer", aby otworzyć eksplorator plików.

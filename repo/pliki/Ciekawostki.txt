@@ -1,0 +1,7 @@
+Ciekawostki o Sartax OS
+
+ • Ten plik zostal pobrany z GitHuba przez wlasny stos sieciowy Sartax OS:
+   sterownik karty e1000 -> TCP/IP -> TLS (BearSSL) -> HTTP.
+ • System plikow SartaxFS uzywa blokow po 4 KB i i-wezlow po 128 bajtow.
+ • Jadro ma dwa sloty - aktualizacja trafia do drugiego, a Shift przy starcie
+   pozwala wrocic do poprzedniej wersji.

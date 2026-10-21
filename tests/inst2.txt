@@ -1,0 +1,21 @@
+wait 9
+key ret
+wait 1
+move 805 615
+click
+wait 1
+type Mikolaj
+wait 1
+shot i_konto.png
+move 805 615
+click
+wait 1
+shot i_wyglad.png
+move 805 615
+click
+wait 1
+shot i_podsum.png
+move 805 615
+click
+wait 70
+shot i_koniec.png

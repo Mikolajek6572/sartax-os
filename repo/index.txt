@@ -1,0 +1,3 @@
+# Sartax OS - lista plikow w Pobieralni
+# typ|nazwa|wersja|sciezka|url|rozmiar|sha256|opis
+plik|Ciekawostki o Sartax OS|1.0|/Dokumenty/Ciekawostki.txt|pliki/Ciekawostki.txt|359|9049598d70745cef7ff4696df0e3e07bc43551313063d36342458d091d7c031a|Krotki tekst o tym, jak dziala Sartax OS

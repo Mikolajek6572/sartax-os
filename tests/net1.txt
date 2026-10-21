@@ -1,0 +1,5 @@
+wait 18
+move 55 140
+dclick
+wait 25
+shot n_store.png

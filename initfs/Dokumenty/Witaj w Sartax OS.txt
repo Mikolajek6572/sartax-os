@@ -1,0 +1,21 @@
+Witaj w Sartax OS!
+
+Sartax OS to calkowicie wlasny system operacyjny - nie dziala na Linuksie
+ani na Windowsie. Ma wlasny bootloader, wlasne jadro, wlasny system plikow
+(SartaxFS), wlasny pulpit i wlasny eksplorator plikow.
+
+Co mozesz zrobic:
+ • Eksplorator plikow - przegladaj, tworz, kopiuj, przenos i usuwaj pliki
+ • Notatnik - pisz i zapisuj teksty (tez z polskimi literami: ąęćłńóśźż)
+ • Podgląd obrazów - otwieraj pliki .bmp
+ • Pobieralnia - pobieraj pliki i programy dla Sartax OS z GitHuba
+ • Aktualizacje - pobieraj nowe wersje systemu z GitHuba
+
+Skróty:
+ • Ctrl+C / Ctrl+X / Ctrl+V - kopiuj, wytnij, wklej w eksploratorze
+ • F2 - zmień nazwę, Delete - usuń
+ • Ctrl+S - zapisz w notatniku
+ • Przytrzymaj Shift przy starcie komputera, aby uruchomić poprzednią
+   wersję systemu (przydatne, gdyby aktualizacja coś zepsuła)
+
+Milej zabawy!

@@ -1,0 +1,2 @@
+repo/** -text
+*.sh text eol=lf

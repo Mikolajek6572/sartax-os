@@ -1,0 +1,5 @@
+wait 9
+shot inst0.png
+key ret
+wait 1
+shot inst1.png
