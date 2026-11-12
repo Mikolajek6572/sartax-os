@@ -16,6 +16,12 @@ BRDEFS := -DBR_USE_URANDOM=0 -DBR_USE_GETENTROPY=0 -DBR_USE_UNIX_TIME=0 -DBR_USE
 BRFLAGS := $(CFLAGS) -Ithird_party/BearSSL/src -w $(BRDEFS)
 
 KSRC := $(wildcard kernel/*.c) $(wildcard kernel/net/*.c) $(wildcard kernel/apps/*.c)
+# JavaScript (QuickJS) + mini libc - kompilowane z SSE (liczby zmiennoprzecinkowe)
+JSFLAGS := $(filter-out -mgeneral-regs-only -Wall,$(CFLAGS)) -msse2 -mfpmath=sse -fwrapv -Ithird_party/quickjs 	-DCONFIG_VERSION=\"2026-06-04\" -D__SARTAX__
+QJSSRC := quickjs.c libregexp.c libunicode.c cutils.c dtoa.c
+QJSOBJ := $(patsubst %.c,$(B)/quickjs/%.o,$(QJSSRC))
+JSGLUE := $(wildcard kernel/js/*.c)
+JSGOBJ := $(patsubst %.c,$(B)/%.o,$(JSGLUE))
 GEN := kernel/gen/fontdata.c kernel/gen/icondata.c kernel/gen/trustanchors.c kernel/gen/initfs.c
 BRSRC := $(shell find third_party/BearSSL/src -name '*.c')
 KOBJ := $(patsubst %.c,$(B)/%.o,$(KSRC) $(GEN))
@@ -27,6 +33,16 @@ $(B)/%.o: %.c
 	@mkdir -p $(dir $@)
 	@echo "  CC  $<"
 	@$(CC) $(CFLAGS) -c $< -o $@
+
+$(B)/quickjs/%.o: third_party/quickjs/%.c
+	@mkdir -p $(dir $@)
+	@echo "  JS  $<"
+	@$(CC) $(JSFLAGS) -w -c $< -o $@
+
+$(B)/kernel/js/%.o: kernel/js/%.c
+	@mkdir -p $(dir $@)
+	@echo "  CC  $<"
+	@$(CC) $(JSFLAGS) -Wall -Wno-unused-parameter -Wno-sign-compare -c $< -o $@
 
 $(B)/bearssl/%.o: third_party/BearSSL/src/%.c
 	@mkdir -p $(dir $@)
@@ -63,10 +79,10 @@ kernel/gen/trustanchors.c:
 	( echo '#include "bearssl.h"'; third_party/BearSSL/build/brssl ta /etc/ssl/certs/ca-certificates.crt 2>/dev/null; \
 	  echo 'const br_x509_trust_anchor *g_TAs = TAs; const size_t g_TAs_num = TAs_NUM;' ) > $@
 
-$(B)/kernel.elf: $(B)/entry.o $(B)/blobs.o $(KOBJ) $(BROBJ) kernel/linker.ld
+$(B)/kernel.elf: $(B)/entry.o $(B)/blobs.o $(KOBJ) $(BROBJ) $(QJSOBJ) $(JSGOBJ) kernel/linker.ld
 	@echo "  LD  $@"
 	@$(CC) -nostdlib -static -no-pie -Wl,-T,kernel/linker.ld -Wl,--no-warn-rwx-segments -o $@ \
-		$(B)/entry.o $(B)/blobs.o $(KOBJ) $(BROBJ) -lgcc
+		$(B)/entry.o $(B)/blobs.o $(KOBJ) $(BROBJ) $(QJSOBJ) $(JSGOBJ) -lgcc
 
 $(B)/kernel.bin: $(B)/kernel.elf tools/mkimage.py
 	objcopy -O binary $< $@.tmp

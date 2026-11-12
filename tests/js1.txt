@@ -1,0 +1,22 @@
+wait 18
+move 55 140
+click
+key ret
+wait 6
+move 500 139
+click
+key ctrl-a
+type http://10.0.2.2:8000/js.html
+key ret
+wait 15
+shot j1.png
+move 108 317
+click
+wait 1
+click
+wait 1
+click
+wait 2
+key f12
+wait 2
+shot j2.png

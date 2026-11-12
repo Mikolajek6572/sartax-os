@@ -109,3 +109,8 @@ void *krealloc(void *p, size_t n) {
 
 u64 heap_free_bytes(void) { return total_bytes - used_bytes; }
 u64 heap_total_bytes(void) { return total_bytes; }
+
+size_t kmalloc_usable(void *p) {
+    block_t *b = (block_t *)((u8 *)p - HDR);
+    return b->size - HDR;
+}

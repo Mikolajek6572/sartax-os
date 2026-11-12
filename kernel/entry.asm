@@ -71,6 +71,7 @@ real_start:
     mov rax, cr4
     or ax, (3 << 9)
     mov cr4, rax
+    fninit                        ; koprocesor x87 (matematyka JavaScriptu)
 
     mov rdi, r12
     call kmain
@@ -156,5 +157,5 @@ gdt_desc:
 section .bss
 align 16
 stack_bottom:
-    resb 256 * 1024
+    resb 1024 * 1024
 stack_top:

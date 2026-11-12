@@ -1,64 +1,10 @@
 // Sartax OS - Przegladarka Sartax (wlasny silnik HTML)
 // Karty, historia, obrazki PNG/JPEG/GIF/BMP, kolory i wysrodkowanie (style inline, <font>, <center>),
 // formularze GET, encje, UTF-8 / ISO-8859-2 / Windows-1250, wlasna wyszukiwarka (wyniki z DuckDuckGo).
-// Bez arkuszy CSS i JavaScriptu.
+// JavaScript przez silnik QuickJS (kernel/js), strona to drzewo DOM (dom.c). Bez arkuszy CSS.
 #include "../apps.h"
 #include "../net.h"
-
-enum { F_TEXT, F_BR, F_BLOCK, F_HR, F_LI, F_INDENT, F_IMG, F_INPUT, F_BUTTON, F_SPACE, F_MAIN };
-enum { B_TEXT, B_HR, B_IMG, B_INPUT, B_BUTTON, B_ALT };
-enum { AL_LEFT, AL_CENTER, AL_RIGHT };
-
-typedef struct {
-    u8 type, font, pre, align;
-    u32 color;          // 0 = domyslny
-    int text, len;      // w arenie
-    int link;
-    int val, w, h;
-} frag_t;
-
-typedef struct {
-    int x, y, w, h;
-    u8 kind, font;
-    u32 color;
-    int text, len;
-    int link;
-    int val;
-} box_t;
-
-typedef struct {
-    int form;
-    int type;           // 0 tekst, 1 ukryte, 2 przycisk
-    char name[64];
-    char value[256];
-} field_t;
-
-typedef struct {
-    int url;            // w arenie
-    image_t *img;
-    u8 state;           // 0 czeka, 1 gotowy, 2 blad
-} pimg_t;
-
-typedef struct {
-    char *arena;
-    int alen, acap;
-    frag_t *frags;
-    int nfrags, cfrags;
-    int *links;
-    int nlinks, clinks;
-    field_t *fields;
-    int nfields;
-    char (*forms)[512];
-    int nforms;
-    pimg_t *imgs;
-    int nimgs, cimgs;
-    box_t *boxes;
-    int nboxes, cboxes;
-    int doc_h, laid_w;
-    int main_prio, main_y;
-    u32 bg, text_col, link_col;
-    char title[128];
-} page_t;
+#include "web.h"
 
 typedef struct {
     char url[512];
@@ -68,6 +14,7 @@ typedef struct {
     char hist[24][512];
     int nhist, hpos;
     int focus_field;
+    dnode_t *focus_node;
     bool jump_main;
     int img_next;
 } tab_t;
@@ -80,6 +27,8 @@ typedef struct {
     char pending[600];
     bool pending_record;
     char status[300];
+    bool show_console;
+    int console_scroll;
 } browser_t;
 
 #define TABS_H 40
@@ -111,7 +60,7 @@ static char *start_page_html(void) {
         "<a href=\"https://text.npr.org/\">NPR</a> &nbsp;&bull;&nbsp; "
         "<a href=\"https://lite.cnn.com/\">CNN Lite</a> &nbsp;&bull;&nbsp; "
         "<a href=\"https://example.com/\">example.com</a>"
-        "<br><br><br><br><font size=\"2\" color=\"#80868b\">Przegladarka Sartax %s - wlasny silnik stron, bez JavaScriptu</font>"
+        "<br><br><br><br><font size=\"2\" color=\"#80868b\">Przegladarka Sartax %s - wlasny silnik stron, z JavaScriptem</font>"
         "</center></body>",
         LOGO_HTML, SARTAX_VERSION);
     return h;
@@ -132,6 +81,8 @@ static int arena_add(page_t *p, const char *s, int n) {
 
 static int arena_str(page_t *p, const char *s) { return arena_add(p, s, strlen(s) + 1); }
 
+static dnode_t *g_rnode;       // element, ktory wlasnie rysujemy (dla zdarzen JS)
+
 static frag_t *frag_new(page_t *p, int type) {
     if (p->nfrags == p->cfrags) {
         p->cfrags = p->cfrags ? p->cfrags * 2 : 256;
@@ -141,12 +92,16 @@ static frag_t *frag_new(page_t *p, int type) {
     memset(f, 0, sizeof *f);
     f->type = type;
     f->link = -1;
+    f->node = g_rnode;
     return f;
 }
 
 static void page_free(page_t *p) {
     if (!p) return;
-    for (int i = 0; i < p->nimgs; i++) image_free(p->imgs[i].img);
+    js_page_free(p);
+    dom_free(p->doc);
+    kfree(p->console);
+    for (int i = 0; i < p->nimgs; i++) { image_free(p->imgs[i].img); kfree(p->imgs[i].url); }
     kfree(p->imgs);
     kfree(p->arena);
     kfree(p->frags);
@@ -311,6 +266,8 @@ static bool resolve_url(const char *base, const char *href, char *out, int cap) 
     strlcpy(out, tmp, cap);
     return true;
 }
+
+bool web_resolve_url(const char *base, const char *href, char *out, int cap) { return resolve_url(base, href, out, cap); }
 
 static void url_encode(const char *s, char *out, int cap) {
     int o = 0;
@@ -580,17 +537,28 @@ static void emit_block(page_t *p, int margin) {
     frag_new(p, F_BLOCK)->val = margin;
 }
 
-static void emit_text(page_t *p, pstate_t *s, const char *t, int n) {
+// decoded = tekst juz bez encji (z drzewa DOM)
+static int copy_text(const char *t, int n, char *out) {
+    int o = 0;
+    for (int i = 0; i < n; i++) {
+        if ((u8)t[i] == 0xC2 && i + 1 < n && (u8)t[i + 1] == 0xA0) { out[o++] = ' '; i++; continue; }
+        out[o++] = t[i];
+    }
+    out[o] = 0;
+    return o;
+}
+
+static void emit_text(page_t *p, pstate_t *s, const char *t, int n, bool decoded) {
     if (s->in_title) {
         int l = strlen(p->title);
         char buf[256];
-        int dn = decode_text(t, MIN(n, 200), buf, sizeof buf);
+        int dn = decoded ? copy_text(t, MIN(n, 200), buf) : decode_text(t, MIN(n, 200), buf, sizeof buf);
         for (int i = 0; i < dn && l < (int)sizeof p->title - 1; i++) p->title[l++] = is_space(buf[i]) ? ' ' : buf[i];
         p->title[l] = 0;
         return;
     }
     char *buf = kmalloc(n * 2 + 8);
-    int dn = decode_text(t, n, buf, n * 2 + 8);
+    int dn = decoded ? copy_text(t, n, buf) : decode_text(t, n, buf, n * 2 + 8);
     if (s->in_button) {
         int l = strlen(s->button_label);
         for (int i = 0; i < dn && l < 90; i++)
@@ -636,7 +604,7 @@ static int add_link(page_t *p, const char *href) {
 
 static int add_image(page_t *p, const char *src) {
     for (int i = 0; i < p->nimgs; i++)
-        if (!strcmp(p->arena + p->imgs[i].url, src)) return i;
+        if (!strcmp(p->imgs[i].url, src)) return i;
     if (p->nimgs >= 80) return -1;
     if (p->nimgs == p->cimgs) {
         p->cimgs = p->cimgs ? p->cimgs * 2 : 16;
@@ -644,7 +612,7 @@ static int add_image(page_t *p, const char *src) {
     }
     pimg_t *im = &p->imgs[p->nimgs];
     memset(im, 0, sizeof *im);
-    im->url = arena_str(p, src);
+    im->url = kstrdup(src);
     return p->nimgs++;
 }
 
@@ -656,6 +624,7 @@ static int add_field(page_t *p, int form, int type, const char *name, const char
     f->type = type;
     strlcpy(f->name, name, sizeof f->name);
     strlcpy(f->value, value, sizeof f->value);
+    f->node = g_rnode;
     return p->nfields++;
 }
 
@@ -772,6 +741,7 @@ static void handle_tag(page_t *p, pstate_t *s, const char *name, bool close, con
             if (p->nforms < 32) {
                 get_attr(attrs, alen, "action", a, sizeof a);
                 strlcpy(p->forms[p->nforms], a, 512);
+                p->form_nodes[p->nforms] = g_rnode;
                 s->cur_form = p->nforms++;
             }
         } else s->cur_form = -1;
@@ -890,6 +860,93 @@ static void handle_tag(page_t *p, pstate_t *s, const char *name, bool close, con
 #undef IS
 }
 
+// ---------------- drzewo DOM -> fragmenty ----------------
+static bool skip_tag(const char *t) {
+    static const char *sk[] = { "script", "style", "template", "svg", "iframe", "object", "canvas", "math", "video", "audio",
+                                "select", "noscript", "head-meta" };
+    for (int i = 0; i < (int)ARRAY_LEN(sk); i++)
+        if (!strcmp(t, sk[i])) return true;
+    return false;
+}
+
+static void render_node(page_t *p, pstate_t *st, dnode_t *n, int depth) {
+    if (depth > 400) return;
+    if (n->type == DN_TEXT) {
+        g_rnode = n->parent;
+        emit_text(p, st, n->text, strlen(n->text), true);
+        return;
+    }
+    if (n->type == DN_ELEM) {
+        if (skip_tag(n->tag)) return;
+        int alen = n->attrs ? strlen(n->attrs) : 0;
+        const char *attrs = n->attrs ? n->attrs : "";
+        if (alen && is_hidden(attrs, alen)) return;
+        g_rnode = n;
+        if (!strcmp(n->tag, "textarea")) {
+            char nm[64];
+            get_attr(attrs, alen, "name", nm, sizeof nm);
+            char *t = dom_text_content(n);
+            char *v = dom_get_attr_dup(n, "value");
+            int fi = add_field(p, st->cur_form, 0, nm, v ? v : t);
+            kfree(t);
+            kfree(v);
+            if (fi >= 0) { frag_t *f = frag_new(p, F_INPUT); f->val = fi; f->w = 400; }
+            return;
+        }
+        handle_tag(p, st, n->tag, false, attrs, alen);
+        if (!dom_is_void(n->tag)) {
+            for (dnode_t *c = n->first; c; c = c->next) render_node(p, st, c, depth + 1);
+            g_rnode = n;
+            handle_tag(p, st, n->tag, true, attrs, alen);
+        }
+        return;
+    }
+    for (dnode_t *c = n->first; c; c = c->next) render_node(p, st, c, depth + 1);
+}
+
+// przebudowa fragmentow z drzewa (po zmianach z JavaScriptu)
+void page_rerender(page_t *p) {
+    if (!p->doc) return;
+    p->alen = 0;
+    p->nfrags = 0;
+    p->nlinks = 0;
+    p->nfields = 0;
+    p->nforms = 0;
+    p->nboxes = 0;
+    p->main_prio = 0;
+    p->title[0] = 0;
+    p->bg = RGB(255, 255, 255);
+    p->text_col = p->link_col = 0;
+    pstate_t *st = kzalloc(sizeof(pstate_t));
+    st->cur_form = -1;
+    render_node(p, st, p->doc, 0);
+    g_rnode = NULL;
+    kfree(st);
+    char *t = p->title;
+    while (*t == ' ') t++;
+    memmove(p->title, t, strlen(t) + 1);
+    for (int l = strlen(p->title); l && p->title[l - 1] == ' '; l--) p->title[l - 1] = 0;
+    p->laid_w = 0;
+    p->dirty = false;
+}
+
+void page_console(page_t *p, const char *kind, const char *msg) {
+    kprintf("[js %s] %s\n", kind, msg);
+    char line[600];
+    int n = snprintf(line, sizeof line, "%s%s\n", kind[0] == 'b' ? "! " : kind[0] == 'w' ? "? " : "> ", msg);
+    if (n > (int)sizeof line - 1) n = sizeof line - 1;
+    const int cap = 16384;
+    if (!p->console) { p->console = kmalloc(cap); p->console_len = 0; }
+    if (p->console_len + n >= cap) {
+        int drop = p->console_len + n - cap + 2048;
+        memmove(p->console, p->console + drop, p->console_len - drop);
+        p->console_len -= drop;
+    }
+    memcpy(p->console + p->console_len, line, n);
+    p->console_len += n;
+    p->console[p->console_len] = 0;
+}
+
 static page_t *parse_html(const char *html, size_t n, bool plain) {
     page_t *p = kzalloc(sizeof *p);
     p->bg = RGB(255, 255, 255);
@@ -901,73 +958,8 @@ static page_t *parse_html(const char *html, size_t n, bool plain) {
         f->pre = 1;
         return p;
     }
-    pstate_t *st = kzalloc(sizeof(pstate_t));
-    st->cur_form = -1;
-    const char *s = html, *end = html + n;
-    while (s < end) {
-        if (*s == '<') {
-            if (starts_ci(s, end, "<!--")) {
-                const char *e = strstr(s + 4, "-->");
-                s = e ? e + 3 : end;
-                continue;
-            }
-            if (s + 1 < end && (s[1] == '!' || s[1] == '?')) {
-                const char *e = memchr(s, '>', end - s);
-                s = e ? e + 1 : end;
-                continue;
-            }
-            const char *q = s + 1;
-            bool close = false;
-            if (q < end && *q == '/') { close = true; q++; }
-            if (q >= end || !((*q >= 'a' && *q <= 'z') || (*q >= 'A' && *q <= 'Z'))) {
-                emit_text(p, st, s, 1);
-                s++;
-                continue;
-            }
-            char name[16];
-            int nl = 0;
-            while (q < end && ((*q >= 'a' && *q <= 'z') || (*q >= 'A' && *q <= 'Z') || (*q >= '0' && *q <= '9') || *q == '-')) {
-                if (nl < 15) name[nl++] = lower(*q);
-                q++;
-            }
-            name[nl] = 0;
-            const char *as = q;
-            char quote = 0;
-            while (q < end && (quote || *q != '>')) {
-                if (quote) { if (*q == quote) quote = 0; }
-                else if (*q == '"' || *q == '\'') quote = *q;
-                q++;
-            }
-            int alen = q - as;
-            s = q < end ? q + 1 : end;
-            if (!close && (!strcmp(name, "script") || !strcmp(name, "style") || !strcmp(name, "svg") ||
-                           !strcmp(name, "template") || !strcmp(name, "iframe") || !strcmp(name, "object") ||
-                           !strcmp(name, "canvas") || !strcmp(name, "select") || !strcmp(name, "textarea") ||
-                           !strcmp(name, "math") || !strcmp(name, "video") || !strcmp(name, "audio"))) {
-                if (!strcmp(name, "textarea")) {
-                    int fi = add_field(p, st->cur_form, 0, "", "");
-                    if (fi >= 0) { frag_t *f = frag_new(p, F_INPUT); f->val = fi; f->w = 400; }
-                }
-                if (!alen || as[alen - 1] != '/') s = skip_raw(s, end, name);
-                continue;
-            }
-            if (!close && is_hidden(as, alen) && !is_void(name)) {
-                if (!alen || as[alen - 1] != '/') s = skip_element(s, end, name);
-                continue;
-            }
-            handle_tag(p, st, name, close, as, alen);
-        } else {
-            const char *e = memchr(s, '<', end - s);
-            if (!e) e = end;
-            emit_text(p, st, s, e - s);
-            s = e;
-        }
-    }
-    kfree(st);
-    char *t = p->title;
-    while (*t == ' ') t++;
-    memmove(p->title, t, strlen(t) + 1);
-    for (int l = strlen(p->title); l && p->title[l - 1] == ' '; l--) p->title[l - 1] = 0;
+    p->doc = dom_parse(html, n);
+    page_rerender(p);
     return p;
 }
 
@@ -1202,9 +1194,21 @@ static void set_page(browser_t *b, tab_t *t, page_t *p, const char *url) {
     t->focus_field = -1;
     t->jump_main = p->main_prio > 0;
     t->img_next = 0;
+    t->focus_node = NULL;
+    strlcpy(p->url, url, sizeof p->url);
     strlcpy(t->url, url, sizeof t->url);
     strlcpy(t->addr, !strncmp(url, "sartax:start", 12) ? "" : url, sizeof t->addr);
     if (!strncmp(url, "sartax:szukaj", 13)) url_param(url, "q", t->addr, sizeof t->addr);
+    update_title(b);
+}
+
+// uruchom JavaScript strony (po pokazaniu jej)
+static void start_js(browser_t *b, tab_t *t, page_t *p) {
+    if (!p->doc || !js_enabled()) return;
+    js_page_start(p);
+    if (!br_alive(b) || !tab_alive(b, t) || t->pg != p) return;
+    if (p->dirty) page_rerender(p);
+    t->jump_main = p->main_prio > 0;
     update_title(b);
 }
 
@@ -1396,8 +1400,10 @@ static void load_url(browser_t *b, tab_t *t, const char *url, bool record) {
         bool html = str_ends_with_ci(url, ".html") || str_ends_with_ci(url, ".htm");
         char *u = to_utf8(d, n, "");
         kfree(d);
-        set_page(b, t, parse_html(u, strlen(u), !html), url);
+        page_t *p = parse_html(u, strlen(u), !html);
         kfree(u);
+        set_page(b, t, p, url);
+        start_js(b, t, p);
         return;
     }
     busy_begin("Wczytywanie strony");
@@ -1447,6 +1453,7 @@ static void load_url(browser_t *b, tab_t *t, const char *url, bool record) {
     kfree(u);
     if (record && t->nhist) strlcpy(t->hist[t->hpos], final, 512);
     set_page(b, t, p, final);
+    start_js(b, t, p);
 }
 
 void browser_load_pending(void *ctx) {
@@ -1509,6 +1516,46 @@ static void submit_form(browser_t *b, int field) {
     navigate(b, t, url, true);
 }
 
+// wyslanie formularza z obsluga zdarzenia "submit" (JavaScript moze je zablokowac)
+static void try_submit(browser_t *b, int field) {
+    page_t *p = cur_tab(b)->pg;
+    field_t *f = &p->fields[field];
+    char type[16] = "";
+    if (f->node) dom_get_attr(f->node, "type", type, sizeof type);
+    if (f->type == 2 && !strcmp(type, "button")) return;
+    int form = f->form;
+    if (form < 0) { if (f->type == 2) return; }
+    else if (p->form_nodes[form] && js_dispatch(p, p->form_nodes[form], "submit")) return;
+    submit_form(b, field);
+}
+
+static const char *key_name(event_t *k, char *buf) {
+    switch (k->key) {
+    case KEY_ENTER: return "Enter";
+    case KEY_ESC: return "Escape";
+    case KEY_BACKSPACE: return "Backspace";
+    case KEY_TAB: return "Tab";
+    case KEY_LEFT: return "ArrowLeft";
+    case KEY_RIGHT: return "ArrowRight";
+    case KEY_UP: return "ArrowUp";
+    case KEY_DOWN: return "ArrowDown";
+    case KEY_DEL: return "Delete";
+    case KEY_HOME: return "Home";
+    case KEY_END: return "End";
+    case KEY_CHAR: buf[utf8_encode(k->ch, buf)] = 0; return buf;
+    }
+    return "Unidentified";
+}
+
+static int key_code(event_t *k) {
+    switch (k->key) {
+    case KEY_ENTER: return 13; case KEY_ESC: return 27; case KEY_BACKSPACE: return 8; case KEY_TAB: return 9;
+    case KEY_LEFT: return 37; case KEY_UP: return 38; case KEY_RIGHT: return 39; case KEY_DOWN: return 40; case KEY_DEL: return 46;
+    case KEY_CHAR: return k->ch >= 'a' && k->ch <= 'z' ? (int)k->ch - 32 : (int)k->ch;
+    }
+    return 0;
+}
+
 static tab_t *tab_new(browser_t *b, const char *url) {
     if (b->ntabs >= 8) return NULL;
     tab_t *t = kzalloc(sizeof *t);
@@ -1537,7 +1584,7 @@ static bool load_one_image(browser_t *b) {
     if (!p || t->img_next >= p->nimgs || busy_cancelled()) return false;
     pimg_t *im = &p->imgs[t->img_next++];
     if (im->state) return true;
-    const char *src = p->arena + im->url;
+    const char *src = im->url;
     char url[900];
     if (!resolve_url(t->url, src, url, sizeof url)) { im->state = 2; return true; }
     snprintf(b->status, sizeof b->status, "Wczytywanie obrazkow %d z %d...", t->img_next, p->nimgs);
@@ -1668,6 +1715,16 @@ static void br_frame(window_t *w, surface_t *s) {
     int W = ui.cw, H = ui.ch;
     int vh = H - TOP_H, vw = W - 14;
     page_t *p = t->pg;
+    if (b->show_console) vh -= 170;
+    if (p && p->dirty) {
+        // JavaScript zmienil strone - przebuduj, zachowaj pole z kursorem
+        dnode_t *fn = t->focus_field >= 0 && t->focus_field < p->nfields ? p->fields[t->focus_field].node : NULL;
+        page_rerender(p);
+        t->focus_field = -1;
+        for (int i = 0; i < p->nfields; i++)
+            if (fn && p->fields[i].node == fn) t->focus_field = i;
+        update_title(b);
+    }
     if (p && p->laid_w != vw) layout(p, vw);
     if (p && t->jump_main) { t->jump_main = false; t->scroll = MAX(0, p->main_y - 30); }
 
@@ -1677,17 +1734,28 @@ static void br_frame(window_t *w, surface_t *s) {
         if (ui_ctrl_key('t')) { tab_new(b, NULL); return; }
         if (ui_ctrl_key('w')) { tab_close(b, b->cur); return; }
         if (ui.key && k->key == KEY_TAB && (k->mods & MOD_CTRL)) { b->cur = (b->cur + 1) % b->ntabs; ui.key = NULL; update_title(b); return; }
-        if (t->focus_field >= 0 && p && ui.key) {
+        if (ui.key && k->key == KEY_F12) { b->show_console = !b->show_console; ui.key = NULL; return; }
+        char kb[8];
+        if (t->focus_field >= 0 && t->focus_field < (p ? p->nfields : 0) && ui.key) {
             field_t *f = &p->fields[t->focus_field];
+            dnode_t *fnode = f->node;
+            if (js_dispatch_key(p, fnode, "keydown", key_name(k, kb), key_code(k))) { ui.key = NULL; return; }
             int l = strlen(f->value);
+            bool changed = false;
             if (k->key == KEY_CHAR && (!(k->mods & MOD_CTRL) || (k->mods & (MOD_ALT | MOD_ALTGR)))) {
                 char enc[4];
                 int n = utf8_encode(k->ch, enc);
-                if (l + n < (int)sizeof f->value - 1) { memcpy(f->value + l, enc, n); f->value[l + n] = 0; }
+                if (l + n < (int)sizeof f->value - 1) { memcpy(f->value + l, enc, n); f->value[l + n] = 0; changed = true; }
                 ui.key = NULL;
-            } else if (k->key == KEY_BACKSPACE) { if (l) f->value[utf8_prev(f->value, l)] = 0; ui.key = NULL; }
-            else if (k->key == KEY_ENTER) { ui.key = NULL; submit_form(b, t->focus_field); return; }
+            } else if (k->key == KEY_BACKSPACE) { if (l) { f->value[utf8_prev(f->value, l)] = 0; changed = true; } ui.key = NULL; }
+            else if (k->key == KEY_ENTER) { ui.key = NULL; try_submit(b, t->focus_field); return; }
             else if (k->key == KEY_ESC) { t->focus_field = -1; ui.key = NULL; }
+            if (changed && fnode) {
+                dom_set_attr(fnode, "value", f->value);
+                js_dispatch(p, fnode, "input");
+            }
+        } else if (p && ui.key && p->doc) {
+            if (js_dispatch_key(p, p->doc, "keydown", key_name(k, kb), key_code(k))) { ui.key = NULL; return; }
         }
         if (ui.key) {
             int step = 0;
@@ -1829,14 +1897,25 @@ static void br_frame(window_t *w, surface_t *s) {
         }
         }
         if (ui.mpressed && hov) {
-            if (bx->kind == B_INPUT) { t->focus_field = bx->val; ui_focus_clear(); }
-            else if (bx->kind == B_BUTTON) { submit_form(b, bx->val); s->cx0 = sx0, s->cy0 = sy0, s->cx1 = sx1, s->cy1 = sy1; return; }
+            // najpierw zdarzenie "click" dla JavaScriptu (moze zablokowac domyslne dzialanie)
+            dnode_t *cn = bx->node;
+            if (bx->kind == B_INPUT || bx->kind == B_BUTTON) cn = p->fields[bx->val].node;
+            bool prevented = cn ? js_dispatch(p, cn, "click") : false;
+            if (cur_tab(b) != t || t->pg != p) { s->cx0 = sx0, s->cy0 = sy0, s->cx1 = sx1, s->cy1 = sy1; return; }
+            if (bx->kind == B_INPUT) { t->focus_field = bx->val; ui_focus_clear(); if (cn) js_dispatch(p, cn, "focus"); }
+            else if (prevented) {}
+            else if (bx->kind == B_BUTTON) { try_submit(b, bx->val); s->cx0 = sx0, s->cy0 = sy0, s->cx1 = sx1, s->cy1 = sy1; return; }
             else if (bx->link >= 0) {
+                const char *href = p->arena + p->links[bx->link];
                 char u[900];
-                if (resolve_url(t->url, p->arena + p->links[bx->link], u, sizeof u)) navigate(b, t, u, true);
+                while (*href == ' ') href++;
+                if (!strncmp(href, "javascript:", 11)) js_eval_url(p, href + 11);
+                else if (resolve_url(t->url, href, u, sizeof u)) navigate(b, t, u, true);
                 s->cx0 = sx0, s->cy0 = sy0, s->cx1 = sx1, s->cy1 = sy1;
                 return;
             }
+            s->cx0 = sx0, s->cy0 = sy0, s->cx1 = sx1, s->cy1 = sy1;
+            return;
         }
     }
     if (ui.mpressed && in_content && hover_link < 0) {
@@ -1851,6 +1930,33 @@ static void br_frame(window_t *w, surface_t *s) {
     if (!strncmp(t->url, "sartax:start", 12) && t->focus_field < 0 && p->nfields && !ui.focus && ui.render) t->focus_field = 0;
     s->cx0 = sx0, s->cy0 = sy0, s->cx1 = sx1, s->cy1 = sy1;
     ui_scrollbar(W - 14, TOP_H + 2, vh - 4, &t->scroll, p->doc_h, vh);
+
+    // konsola JavaScriptu (F12)
+    if (b->show_console) {
+        int cy = TOP_H + vh;
+        gfx_fill(s, 0, cy, W, 170, RGB(32, 33, 36));
+        gfx_fill(s, 0, cy, W, 24, RGB(48, 50, 54));
+        gfx_text(s, 10, cy + 5, FONT_BOLD, "Konsola JavaScript", RGB(230, 232, 235));
+        gfx_text(s, W - 160, cy + 6, FONT_SMALL, "F12 - zamknij", RGB(160, 165, 170));
+        const char *c = p->console ? p->console : "";
+        int lines = 0;
+        const char *q = c + strlen(c);
+        while (q > c && lines < 9) { q--; if (*q == '\n' && q[1]) lines++; }
+        if (*q == '\n') q++;
+        int ly = cy + 30;
+        int a0 = s->cx0, a1 = s->cx1, a2 = s->cy0, a3 = s->cy1;
+        gfx_set_clip(s, 0, cy, W, 170);
+        while (*q && ly < cy + 165) {
+            const char *e = strchr(q, '\n');
+            int n = e ? e - q : (int)strlen(q);
+            u32 col = q[0] == '!' ? RGB(255, 120, 110) : q[0] == '?' ? RGB(240, 200, 90) : RGB(220, 224, 228);
+            gfx_text_n(s, 10, ly, FONT_MONO, q, n, col);
+            ly += 15;
+            q = e ? e + 1 : q + n;
+        }
+        if (!c[0]) gfx_text(s, 10, ly, FONT_MONO, "(pusto)", RGB(140, 145, 150));
+        s->cx0 = a0, s->cx1 = a1, s->cy0 = a2, s->cy1 = a3;
+    }
 
     // dymek z adresem linku / postep obrazkow (jak w Chrome)
     char st[600];
@@ -1874,6 +1980,26 @@ static bool br_tick(window_t *w) {
     u64 tt = ticks_ms() / 530;
     bool redraw = false;
     if (t->focus_field >= 0 && w == wm_focused() && tt != last) { last = tt; redraw = true; }
+    // JavaScript: timery, obietnice, nawigacja ze skryptow
+    for (int i = 0; i < b->ntabs; i++) {
+        page_t *p = b->tabs[i]->pg;
+        if (!p) continue;
+        if (js_tick(p) && i == b->cur) redraw = true;
+        if (p->dirty && i == b->cur) redraw = true;
+        if (p->nav_request[0]) {
+            char u[600], r[900];
+            strlcpy(u, p->nav_request, sizeof u);
+            p->nav_request[0] = 0;
+            if (resolve_url(b->tabs[i]->url, u, r, sizeof r)) navigate(b, b->tabs[i], r, true);
+            return true;
+        }
+        if (p->nav_back) {
+            p->nav_back = 0;
+            tab_t *tt2 = b->tabs[i];
+            if (tt2->hpos > 0) { tt2->hpos--; navigate(b, tt2, tt2->hist[tt2->hpos], false); }
+            return true;
+        }
+    }
     if (t->pg && t->img_next < t->pg->nimgs && !menu_is_open()) {
         if (load_one_image(b)) redraw = true;
     } else if (b->status[0]) { b->status[0] = 0; redraw = true; }

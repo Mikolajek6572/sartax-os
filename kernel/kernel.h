@@ -14,8 +14,8 @@ typedef int16_t i16;
 typedef int32_t i32;
 typedef int64_t i64;
 
-#define SARTAX_VERSION "1.0.2"
-#define SARTAX_VERSION_CODE 10002
+#define SARTAX_VERSION "1.0.3"
+#define SARTAX_VERSION_CODE 10003
 
 #define ARRAY_LEN(a) (sizeof(a) / sizeof((a)[0]))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))

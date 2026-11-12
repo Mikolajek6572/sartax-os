@@ -204,7 +204,8 @@ int vsnprintf(char *buf, size_t n, const char *f, va_list ap) {
         while (*f == '-' || *f == '0') { if (*f == '-') left = 1; else zero = 1; f++; }
         if (*f == '*') { width = va_arg(ap, int); f++; }
         while (*f >= '0' && *f <= '9') width = width * 10 + (*f++ - '0');
-        if (*f == '.') { f++; prec = 0; while (*f >= '0' && *f <= '9') prec = prec * 10 + (*f++ - '0'); }
+        if (*f == '.' && f[1] == '*') { f += 2; prec = va_arg(ap, int); if (prec < 0) prec = -1; }
+        else if (*f == '.') { f++; prec = 0; while (*f >= '0' && *f <= '9') prec = prec * 10 + (*f++ - '0'); }
         while (*f == 'l') { lng++; f++; }
         if (*f == 'z') { lng = 2; f++; }
         char tmp[32];
