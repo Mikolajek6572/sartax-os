@@ -1224,8 +1224,8 @@ static void error_page(browser_t *b, tab_t *t, const char *url, const char *err)
     snprintf(h, 3000, "<title>Nie mozna otworzyc strony</title><br><br><center><font size=\"6\" color=\"#5f6368\">:(</font><br><br>"
                       "<h2>Nie mozna otworzyc tej strony</h2><font color=\"#5f6368\">%s</font><br><br>"
                       "<font size=\"2\" color=\"#80868b\">%s</font><br><br>"
-                      "<font color=\"#5f6368\">Sprawdz adres i polaczenie z internetem. Niektore strony wymagaja TLS 1.3 albo JavaScriptu, "
-                      "ktorych Przegladarka Sartax jeszcze nie obsluguje.</font><br><br><a href=\"sartax:start\">Nowa karta</a></center>",
+                      "<font color=\"#5f6368\">Sprawdz adres i polaczenie z internetem. Niektore strony wymagaja TLS 1.3, "
+                      "ktorego Przegladarka Sartax jeszcze nie obsluguje.</font><br><br><a href=\"sartax:start\">Nowa karta</a></center>",
              e1, e2);
     page_t *p = parse_html(h, strlen(h), false);
     kfree(h);

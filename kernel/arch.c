@@ -92,6 +92,74 @@ extern u64 isr_table[48];
 static void (*irq_handlers[16])(void);
 volatile u64 g_ticks;
 
+// ---------------- APIC (lokalny + IOAPIC) ----------------
+// Starszy kontroler PIC nie dostarcza przerwan w VirtualBoxie dzialajacym na Hyper-V,
+// wiec gdy procesor ma APIC, zegar idzie z timera APIC, a klawiatura i mysz przez IOAPIC
+static bool apic_mode;
+#define LAPIC_BASE 0xFEE00000UL
+#define IOAPIC_BASE 0xFEC00000UL
+static inline u32 lapic_r(u32 reg) { return *(volatile u32 *)(LAPIC_BASE + reg); }
+static inline void lapic_w(u32 reg, u32 v) { *(volatile u32 *)(LAPIC_BASE + reg) = v; }
+static void ioapic_w(u32 reg, u32 v) {
+    *(volatile u32 *)IOAPIC_BASE = reg;
+    *(volatile u32 *)(IOAPIC_BASE + 0x10) = v;
+}
+static u32 ioapic_r(u32 reg) {
+    *(volatile u32 *)IOAPIC_BASE = reg;
+    return *(volatile u32 *)(IOAPIC_BASE + 0x10);
+}
+static u64 rdmsr(u32 m) { u32 lo, hi; __asm__ volatile("rdmsr" : "=a"(lo), "=d"(hi) : "c"(m)); return ((u64)hi << 32) | lo; }
+static void wrmsr(u32 m, u64 v) { __asm__ volatile("wrmsr" ::"c"(m), "a"((u32)v), "d"((u32)(v >> 32))); }
+
+// IRQ ISA -> wpis IOAPIC (klawiatura i mysz nie maja przemapowan)
+static void ioapic_route(int irq, bool on) {
+    u32 id = lapic_r(0x20) >> 24;
+    ioapic_w(0x10 + irq * 2 + 1, id << 24);
+    ioapic_w(0x10 + irq * 2, (32 + irq) | (on ? 0 : 0x10000));
+}
+
+static bool apic_init(void) {
+    u32 a, b, c, d;
+    __asm__ volatile("cpuid" : "=a"(a), "=b"(b), "=c"(c), "=d"(d) : "a"(1), "c"(0));
+    if (!(d & (1 << 9))) return false;
+    u64 base = rdmsr(0x1B);
+    if ((base & 0xFFFFF000UL) != LAPIC_BASE) return false;
+    wrmsr(0x1B, base | (1 << 11));
+    u32 ver = ioapic_r(1);
+    if (ver == 0xFFFFFFFF || ver == 0) return false;
+    int entries = ((ver >> 16) & 0xFF) + 1;
+    for (int i = 0; i < entries; i++) {
+        ioapic_w(0x10 + i * 2, 0x10000);         // wszystko zamaskowane
+        ioapic_w(0x10 + i * 2 + 1, 0);
+    }
+    // stary PIC calkiem wyciszony
+    outb(0x21, 0xFF);
+    outb(0xA1, 0xFF);
+    lapic_w(0x80, 0);                            // priorytet zadan
+    lapic_w(0xF0, 0x100 | 47);                   // wlaczony, wektor falszywych przerwan 47
+    lapic_w(0x350, 0x10000);                     // LINT0 zamaskowany
+    // kalibracja timera APIC kanalem 2 PIT (10 ms, bez przerwan)
+    lapic_w(0x3E0, 0x3);                         // dzielnik 16
+    outb(0x61, (inb(0x61) & 0xFD) | 1);          // bramka kanalu 2, glosnik wylaczony
+    outb(0x43, 0xB0);                            // kanal 2, tryb 0
+    outb(0x42, 11932 & 0xFF);
+    outb(0x42, 11932 >> 8);
+    u8 g = inb(0x61) & 0xFE;
+    outb(0x61, g);
+    outb(0x61, g | 1);                           // start odliczania
+    lapic_w(0x380, 0xFFFFFFFF);
+    u32 guard = 0;
+    while (!(inb(0x61) & 0x20) && ++guard < 50000000) {}
+    u32 elapsed = 0xFFFFFFFF - lapic_r(0x390);
+    lapic_w(0x380, 0);
+    if (guard >= 50000000 || elapsed < 100) return false;
+    u32 per_ms = elapsed / 10;
+    lapic_w(0x320, 32 | 0x20000);                // okresowy, wektor 32 (IRQ0)
+    lapic_w(0x380, per_ms);
+    kprintf("[apic] wlaczony, timer %u na ms, IOAPIC %d wejsc\n", per_ms, entries);
+    return true;
+}
+
 static const char *exc_names[] = {
     "Dzielenie przez zero", "Debug", "NMI", "Breakpoint", "Przepelnienie", "Zakres", "Zla instrukcja",
     "Brak FPU", "Double fault", "Koprocesor", "Zly TSS", "Brak segmentu", "Blad stosu",
@@ -105,6 +173,13 @@ void isr_dispatch(regs_t *r) {
         panic_screen("Wyjatek", msg, r);
     }
     int irq = r->vec - 32;
+    if (apic_mode) {
+        if (irq == 15) return;                   // falszywe przerwanie APIC - bez EOI
+        if (irq == 0) g_ticks++;
+        if (irq_handlers[irq]) irq_handlers[irq]();
+        lapic_w(0xB0, 0);
+        return;
+    }
     if (irq == 0) g_ticks++;
     if (irq_handlers[irq]) irq_handlers[irq]();
     if (irq >= 8) outb(0xA0, 0x20);
@@ -126,6 +201,10 @@ static u8 pic_mask1 = 0xFB, pic_mask2 = 0xFF;
 void irq_set_handler(int irq, void (*h)(void)) { irq_handlers[irq] = h; }
 
 void irq_unmask(int irq) {
+    if (apic_mode) {
+        if (irq != 0 && irq != 2) ioapic_route(irq, true);
+        return;
+    }
     if (irq < 8) pic_mask1 &= ~(1 << irq);
     else pic_mask2 &= ~(1 << (irq - 8));
     outb(0x21, pic_mask1);
@@ -152,6 +231,12 @@ void idt_init(void) {
     outb(0x43, 0x36);
     outb(0x40, div & 0xFF);
     outb(0x40, div >> 8);
+    apic_mode = apic_init();
+    if (!apic_mode) {
+        kprintf("[apic] brak - zostaje stary PIC\n");
+        outb(0x21, pic_mask1);
+        outb(0xA1, pic_mask2);
+    }
     irq_unmask(0);
     sti();
 }

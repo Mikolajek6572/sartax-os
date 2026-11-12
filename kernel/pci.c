@@ -93,6 +93,7 @@ bool vbox_mouse_get(int *x, int *y) {
     vmm_hdr(&mouse_req.h, sizeof mouse_req, 1);
     mouse_req.features = 0;
     outl(vmm_port, (u32)(u64)&mouse_req);
+    __asm__ volatile("" ::: "memory");
     if (mouse_req.h.rc < 0) return false;
     if (!(mouse_req.features & 2)) return false;   // host nie chce trybu bezwzglednego
     *x = mouse_req.x;

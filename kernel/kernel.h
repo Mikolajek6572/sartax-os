@@ -14,8 +14,8 @@ typedef int16_t i16;
 typedef int32_t i32;
 typedef int64_t i64;
 
-#define SARTAX_VERSION "1.0.3"
-#define SARTAX_VERSION_CODE 10003
+#define SARTAX_VERSION "1.0.4"
+#define SARTAX_VERSION_CODE 10004
 
 #define ARRAY_LEN(a) (sizeof(a) / sizeof((a)[0]))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
@@ -43,9 +43,9 @@ extern u8 *pristine_image;
 extern char _image_end[], _kernel_end[];
 
 // ---- porty ----
-static inline void outb(u16 p, u8 v) { __asm__ volatile("outb %0, %1" ::"a"(v), "Nd"(p)); }
-static inline void outw(u16 p, u16 v) { __asm__ volatile("outw %0, %1" ::"a"(v), "Nd"(p)); }
-static inline void outl(u16 p, u32 v) { __asm__ volatile("outl %0, %1" ::"a"(v), "Nd"(p)); }
+static inline void outb(u16 p, u8 v) { __asm__ volatile("outb %0, %1" ::"a"(v), "Nd"(p) : "memory"); }
+static inline void outw(u16 p, u16 v) { __asm__ volatile("outw %0, %1" ::"a"(v), "Nd"(p) : "memory"); }
+static inline void outl(u16 p, u32 v) { __asm__ volatile("outl %0, %1" ::"a"(v), "Nd"(p) : "memory"); }
 static inline u8 inb(u16 p) { u8 v; __asm__ volatile("inb %1, %0" : "=a"(v) : "Nd"(p)); return v; }
 static inline u16 inw(u16 p) { u16 v; __asm__ volatile("inw %1, %0" : "=a"(v) : "Nd"(p)); return v; }
 static inline u32 inl(u16 p) { u32 v; __asm__ volatile("inl %1, %0" : "=a"(v) : "Nd"(p)); return v; }
